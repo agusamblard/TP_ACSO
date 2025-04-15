@@ -48,20 +48,22 @@ string_proc_node_create_asm:
 string_proc_list_add_node_asm:
     test rdi, rdi
     je .done
-    movzx edi, sil
+    mov rbx, rdi            ; backup de list
+    movzx edi, sil          ; pasar type
+    mov rsi, rdx            ; pasar hash
     call string_proc_node_create_asm
     test rax, rax
     je .done
-    mov rcx, [rdi + 8]
+    mov rcx, [rbx + 8]      ; list->last
     test rcx, rcx
     je .first_node
-    mov [rax + 8], rcx
-    mov [rcx], rax
-    mov [rdi + 8], rax
+    mov [rax + 8], rcx      ; node->previous = last
+    mov [rcx], rax          ; last->next = node
+    mov [rbx + 8], rax      ; list->last = node
     jmp .done
 .first_node:
-    mov [rdi], rax
-    mov [rdi + 8], rax
+    mov [rbx], rax
+    mov [rbx + 8], rax
 .done:
     ret
 
