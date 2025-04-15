@@ -1,63 +1,76 @@
-#define _POSIX_C_SOURCE 200809L
 #include "ej1.h"
-#include <string.h>  
+#include <string.h>
 
-string_proc_list* string_proc_list_create(void){
-	string_proc_list* list = (string_proc_list*)malloc(sizeof(string_proc_list));
-	if (!list) return NULL;  // <-- Esta línea evita el segfault
-	list->first = NULL;
-	list->last  = NULL;
-	return list;
+
+
+string_proc_list* string_proc_list_create(void) {
+    string_proc_list* lista = malloc(sizeof(string_proc_list));
+    if (lista == NULL) {
+        return NULL;
+    }
+    lista->first = NULL;
+    lista->last = NULL;
+    return lista;
 }
 
-string_proc_node* string_proc_node_create(uint8_t type, char* hash){
-	string_proc_node* node = (string_proc_node*)malloc(sizeof(string_proc_node));
-	if (!node) return NULL;  // <-- Esta línea evita el segfault
-	node->next      = NULL;
-	node->previous  = NULL;
-	node->hash      = hash;
-	node->type      = type;
-	return node;
+string_proc_node* string_proc_node_create(uint8_t type, char* hash) {
+    string_proc_node* nodo = malloc(sizeof(string_proc_node));
+    if (nodo == NULL) return NULL;
+
+    nodo->type = type;
+    nodo->hash = hash;  
+    nodo->next = NULL;
+    nodo->previous = NULL;
+    return nodo;
 }
 
-void string_proc_list_add_node(string_proc_list* list, uint8_t type, char* hash){
-	string_proc_node* node = string_proc_node_create(type, hash);
-	if (!node) return;  // <-- Esta línea evita el segfault
-	if (list->first == NULL) {
-		list->first = node;
-		list->last  = node;
-	} else {
-		node->previous = list->last;
-		list->last->next = node;
-		list->last = node;
-	}
+void string_proc_list_add_node(string_proc_list* list, uint8_t type, char* hash) {
+    if (list == NULL) return;
+
+    string_proc_node* nodo = string_proc_node_create(type, hash);
+    if (nodo == NULL) {
+        return;
+    }
+
+    if (list->last == NULL) {
+        list->first = nodo;
+        list->last = nodo;
+    } else {
+        nodo->previous = list->last;
+        list->last->next = nodo;
+        list->last = nodo;
+    }
 }
 
-char* string_proc_list_concat(string_proc_list* list, uint8_t type , char* hash){
-	string_proc_node* current_node = list->first;
-	char* result = NULL;
-	while(current_node != NULL){
-		if (current_node->type == type){
-			if (result == NULL) {
-				result = strdup(current_node->hash);
-			} else {
-				char* temp = str_concat(result, current_node->hash);
-				free(result);
-				result = temp;
-			}
-		}
-		current_node = current_node->next;
-	}
-	return result;
+// Concatena todos los hash de nodos del tipo especificado
+char* string_proc_list_concat(string_proc_list* list, uint8_t type, char* hash) {
+    if (list == NULL || hash == NULL) return NULL;
+
+    char* resultado = malloc(strlen(hash) + 1);
+    if (resultado == NULL) return NULL;
+    
+	strcpy(resultado, hash);
+
+    string_proc_node* actual = list->first;
+    while (actual != NULL) {
+        if (actual->type == type && actual->hash != NULL) {
+            char* resultado_nuevo = str_concat(resultado, actual->hash);
+            free(resultado);
+            if (resultado_nuevo == NULL) return NULL;
+            resultado = resultado_nuevo;
+        }
+        actual = actual->next;
+    }
+
+    return resultado;
 }
 
 
 /** AUX FUNCTIONS **/
 
 void string_proc_list_destroy(string_proc_list* list){
-    if (!list) return;  // <-- Esta línea evita el segfault
-
-    string_proc_node* current_node = list->first;
+	/* borro los nodos: */
+	string_proc_node* current_node	= list->first;
 	string_proc_node* next_node		= NULL;
 	while(current_node != NULL){
 		next_node = current_node->next;
@@ -70,6 +83,7 @@ void string_proc_list_destroy(string_proc_list* list){
 	free(list);
 }
 void string_proc_node_destroy(string_proc_node* node){
+
 	node->next      = NULL;
 	node->previous	= NULL;
 	node->hash		= NULL;
@@ -102,4 +116,3 @@ void string_proc_list_print(string_proc_list* list, FILE* file){
                 current_node = current_node->next;
         }
 }
-
