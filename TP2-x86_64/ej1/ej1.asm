@@ -4,7 +4,6 @@
 %define FALSE 0
 
 section .data
-empty_string db 0
 
 section .text
 
@@ -13,123 +12,259 @@ global string_proc_node_create_asm
 global string_proc_list_add_node_asm
 global string_proc_list_concat_asm
 
+; FUNCIONES auxiliares que pueden llegar a necesitar:
 extern malloc
 extern free
 extern str_concat
 
-; ==============================================
-; string_proc_list* string_proc_list_create_asm()
-; ==============================================
+
 string_proc_list_create_asm:
-    mov rdi, 16          ; sizeof(string_proc_list)
+    ; Stackframe
+    push rbp
+    mov rbp, rsp
+
+    ; malloc(sizeof(string_proc_list)) -> malloc(16)
+    mov edi, 16
     call malloc
+    ; rax tiene el puntero devuelto
+
+    ; if rax == NULL -> salto
     test rax, rax
     je .return_null
 
-    mov qword [rax], 0       ; first = NULL
-    mov qword [rax + 8], 0   ; last = NULL
-    ret
+    ; *(rax) = 0 (first = NULL)
+    mov qword [rax], 0
+
+    ; *(rax + 8) = 0 (last = NULL)
+    mov qword [rax + 8], 0
 
 .return_null:
-    mov rax, 0
+    ; rax ya tiene el puntero (sea NULL o válido)
+    pop rbp
     ret
 
-; ===================================================
-; string_proc_node* string_proc_node_create_asm(uint8_t type, char* hash)
-; ===================================================
 string_proc_node_create_asm:
-    mov rdi, 32          ; sizeof(string_proc_node)
-    call malloc
-    test rax, rax
-    je .return_null_node
+        push    rbp
+        mov     rbp, rsp
+        sub     rsp, 32
+        
+        ; Guardar parámetros
+        mov     byte [rbp-20], dil  ; type (uint8_t)
+        mov     qword [rbp-32], rsi ; hash (const char*)
+        
+        ; Asignar memoria
+        mov     edi, 32
+        call    malloc
+        mov     qword [rbp-8], rax  ; Guardar ptr devuelto
+        
+        ; Verificar malloc
+        cmp     qword [rbp-8], 0
+        je      .return_null
+        
+        ; Inicializar estructura
+        mov     rax, qword [rbp-8]
+        mov     qword [rax], 0       ; next = NULL
+        mov     qword [rax+8], 0     ; previous = NULL
+        
+        ; Asignar type 
+        movzx   edx, byte [rbp-20]   ; Cargar type correctamente
+        mov     byte [rax+16], dl
+        
+        ; Asignar hash
+        mov     rdx, qword [rbp-32]
+        mov     qword [rax+24], rdx
+        
+        mov     rax, qword [rbp-8]   ; Devolver ptr
+        jmp     .return
+        
+.return_null:
+        xor     eax, eax                 ; Devolver NULL
+        
+.return:
+        leave
+        ret
 
-    mov rdx, rdi         ; rdx = type
-    mov rcx, rsi         ; rcx = hash
 
-    mov qword [rax], 0          ; next = NULL
-    mov qword [rax + 8], 0      ; previous = NULL
-    mov byte [rax + 16], dl     ; type
-    mov qword [rax + 24], rcx   ; hash
-    ret
-
-.return_null_node:
-    mov rax, 0
-    ret
-
-; ====================================================
-; void string_proc_list_add_node_asm(string_proc_list* list, uint8_t type, char* hash)
-; ====================================================
 string_proc_list_add_node_asm:
-    movzx edi, sil          ; type → edi
-    mov rsi, rdx            ; hash → rsi
-    call string_proc_node_create_asm
-    test rax, rax
-    je .end_add_node
+    push    rbp
+    mov     rbp, rsp
+    sub     rsp, 48
 
-    mov rbx, rdi            ; list
-    mov rcx, [rbx]          ; list->first
-    test rcx, rcx
-    je .add_first_node
+    mov     qword [rbp-24], rdi       ; list
+    mov     eax, esi                  ; type
+    mov     qword [rbp-40], rdx       ; string pointer
+    mov     byte [rbp-28], al
 
-    ; agregar al final
-    mov rcx, [rbx + 8]      ; list->last
-    mov [rcx], rax          ; last->next = node
-    mov [rax + 8], rcx      ; node->previous = last
-    mov [rbx + 8], rax      ; list->last = node
-    jmp .end_add_node
+    cmp     qword [rbp-24], 0
+    je      .L9
 
-.add_first_node:
-    mov [rbx], rax          ; list->first = node
-    mov [rbx + 8], rax      ; list->last = node
+    movzx   eax, byte [rbp-28]
+    mov     rdx, qword [rbp-40]
+    mov     rsi, rdx
+    mov     edi, eax
+    call    string_proc_node_create_asm
+    mov     qword [rbp-8], rax
 
-.end_add_node:
+    cmp     qword [rbp-8], 0
+    je      .L10
+
+    mov     rax, qword [rbp-24]
+    mov     rax, qword [rax+8]
+    test    rax, rax
+    jne     .L8
+
+    mov     rax, qword [rbp-24]
+    mov     rdx, qword [rbp-8]
+    mov     qword [rax], rdx
+
+    mov     rax, qword [rbp-24]
+    mov     rdx, qword [rbp-8]
+    mov     qword [rax+8], rdx
+
+    jmp     .L4
+
+.L8:
+    mov     rax, qword [rbp-24]
+    mov     rdx, qword [rax+8]
+
+    mov     rax, qword [rbp-8]
+    mov     qword [rax+8], rdx
+
+    mov     rax, qword [rbp-24]
+    mov     rax, qword [rax+8]
+
+    mov     rdx, qword [rbp-8]
+    mov     qword [rax], rdx
+
+    mov     rax, qword [rbp-24]
+    mov     rdx, qword [rbp-8]
+    mov     qword [rax+8], rdx
+
+    jmp     .L4
+
+.L9:
+    nop
+    jmp     .L4
+
+.L10:
+    nop
+
+.L4:
+    leave
     ret
 
-; ===================================================
-; char* string_proc_list_concat_asm(string_proc_list* list, uint8_t type, char* hash)
-; ===================================================
 string_proc_list_concat_asm:
-    ; rdi = list, sil = type, rdx = hash
+    push    rbp
+    mov     rbp, rsp
+    sub     rsp, 64
 
-    test rdi, rdi
-    je .return_hash_copy
+    mov     qword [rbp-40], rdi     ; list
+    mov     eax, esi                ; type
+    mov     qword [rbp-56], rdx     ; string
+    mov     byte [rbp-44], al
 
-    push rdi               ; guardar puntero a list
+    cmp     qword [rbp-40], 0
+    je      .L4
+    cmp     qword [rbp-56], 0
+    jne     .L5
 
-    mov rdi, empty_string
-    mov rsi, rdx
-    call str_concat
-    mov rbx, rax            ; resultado acumulado
+.L4:
+    mov     eax, 0
+    jmp     .L6
 
-    pop rdi                ; recuperar puntero a list
-    mov rcx, [rdi]         ; rcx = list->first
+.L5:
+    mov     rax, qword [rbp-56]
+    mov     rdi, rax
+    call    strlen_custom
+    add     rax, 1
+    mov     rdi, rax
+    call    malloc
+    mov     qword [rbp-8], rax
 
-.loop_concat:
-    test rcx, rcx
-    je .done_concat
+    cmp     qword [rbp-8], 0
+    jne     .L7
 
-    mov al, byte [rcx + 16] ; tipo actual
-    cmp al, sil
-    jne .next_node
+    mov     eax, 0
+    jmp     .L6
 
-    ; concatenar si coincide tipo
-    mov rdi, rbx
-    mov rsi, [rcx + 24]     ; nodo->hash
-    call str_concat
-    mov rdi, rbx
-    call free
-    mov rbx, rax            ; nuevo result
+.L7:
+    mov     rdx, qword [rbp-56]
+    mov     rax, qword [rbp-8]
+    mov     rsi, rdx
+    mov     rdi, rax
+    call    strcpy_custom
 
-.next_node:
-    mov rcx, [rcx]          ; next
-    jmp .loop_concat
+    mov     rax, qword [rbp-40]
+    mov     rax, qword [rax]
+    mov     qword [rbp-16], rax
 
-.done_concat:
-    mov rax, rbx
+    jmp     .L8
+
+.L11:
+    mov     rax, qword [rbp-16]
+    movzx   eax, byte [rax+16]
+    cmp     byte [rbp-44], al
+    jne     .L9
+
+    mov     rax, qword [rbp-16]
+    mov     rax, qword [rax+24]
+    test    rax, rax
+    je      .L9
+
+    mov     rax, qword [rbp-16]
+    mov     rdx, qword [rax+24]
+    mov     rax, qword [rbp-8]
+    mov     rsi, rdx
+    mov     rdi, rax
+    call    str_concat
+    mov     qword [rbp-24], rax
+
+    mov     rax, qword [rbp-8]
+    mov     rdi, rax
+    call    free
+
+    cmp     qword [rbp-24], 0
+    jne     .L10
+
+    mov     eax, 0
+    jmp     .L6
+
+.L10:
+    mov     rax, qword [rbp-24]
+    mov     qword [rbp-8], rax
+
+.L9:
+    mov     rax, qword [rbp-16]
+    mov     rax, qword [rax]
+    mov     qword [rbp-16], rax
+
+.L8:
+    cmp     qword [rbp-16], 0
+    jne     .L11
+
+    mov     rax, qword [rbp-8]
+
+.L6:
+    leave
     ret
 
-.return_hash_copy:
-    mov rdi, empty_string
-    mov rsi, rdx
-    call str_concat
+strcpy_custom:
+    mov     rax, rdi         ; guardar el puntero original de destino
+.copy:
+    mov     bl, [rsi]        ; cargar byte origen
+    mov     [rdi], bl        ; copiar a destino
+    inc     rsi
+    inc     rdi
+    test    bl, bl           ; terminamos si es 0
+    jnz     .copy
+    ret
+
+strlen_custom:
+    xor     rax, rax            ; contador = 0
+.next_char:
+    cmp     BYTE [rdi + rax], 0
+    je      .done
+    inc     rax
+    jmp     .next_char
+.done:
     ret
