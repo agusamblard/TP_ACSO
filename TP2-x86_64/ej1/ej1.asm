@@ -91,13 +91,15 @@ string_proc_list_add_node_asm:
 string_proc_list_concat_asm:
     ; rdi = list, sil = type, rdx = hash
 
-    ; inicializar resultado con str_concat("", hash)
+    push rdi               ; guardar puntero a list
+
     mov rdi, empty_string
     mov rsi, rdx
     call str_concat
-    mov rbx, rax            ; rbx = result
+    mov rbx, rax            ; resultado acumulado
 
-    mov rcx, [rdi]          ; rcx = list->first
+    pop rdi                ; recuperar puntero a list
+    mov rcx, [rdi]         ; rcx = list->first
 
 .loop_concat:
     test rcx, rcx
