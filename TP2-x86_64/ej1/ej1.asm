@@ -1,3 +1,11 @@
+; /** defines bool y puntero **/
+%define NULL 0
+%define TRUE 1
+%define FALSE 0
+
+section .data
+empty_string db 0
+
 .text
 
 .global string_proc_list_create_asm
