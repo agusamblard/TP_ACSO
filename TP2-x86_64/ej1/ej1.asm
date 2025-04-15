@@ -4,6 +4,7 @@
 %define FALSE 0
 
 section .data
+empty_string db 0
 
 section .text
 
@@ -20,13 +21,11 @@ extern str_concat
 ; string_proc_list* string_proc_list_create_asm()
 ; ==============================================
 string_proc_list_create_asm:
-    ; reservar memoria para la estructura (16 bytes)
-    mov rdi, 16
+    mov rdi, 16          ; sizeof(string_proc_list)
     call malloc
     test rax, rax
     je .return_null
 
-    ; inicializar los campos first y last en NULL
     mov qword [rax], 0       ; first = NULL
     mov qword [rax + 8], 0   ; last = NULL
     ret
@@ -39,22 +38,18 @@ string_proc_list_create_asm:
 ; string_proc_node* string_proc_node_create_asm(uint8_t type, char* hash)
 ; ===================================================
 string_proc_node_create_asm:
-    ; reservar memoria para la estructura (32 bytes)
-    mov rdi, 32
+    mov rdi, 32          ; sizeof(string_proc_node)
     call malloc
     test rax, rax
     je .return_null_node
 
-    ; rdi = type, rsi = hash (ver orden de parámetros AMD64 System V)
-    mov rdx, rdi            ; guardar type en rdx
-    mov rcx, rsi            ; guardar hash en rcx
+    mov rdx, rdi         ; rdx = type
+    mov rcx, rsi         ; rcx = hash
 
-    ; inicializar campos del nodo
     mov qword [rax], 0          ; next = NULL
     mov qword [rax + 8], 0      ; previous = NULL
-    mov byte [rax + 16], dl     ; type (uint8_t) en offset 16
-    mov qword [rax + 24], rcx   ; hash (puntero) en offset 24
-
+    mov byte [rax + 16], dl     ; type
+    mov qword [rax + 24], rcx   ; hash
     ret
 
 .return_null_node:
@@ -65,31 +60,27 @@ string_proc_node_create_asm:
 ; void string_proc_list_add_node_asm(string_proc_list* list, uint8_t type, char* hash)
 ; ====================================================
 string_proc_list_add_node_asm:
-    ; list = rdi, type = sil (parte baja de rsi), hash = rdx
-
-    ; preparar argumentos para crear el nodo
-    movzx edi, sil          ; type en edi
-    mov rsi, rdx            ; hash en rsi
+    movzx edi, sil          ; type → edi
+    mov rsi, rdx            ; hash → rsi
     call string_proc_node_create_asm
     test rax, rax
     je .end_add_node
 
-    ; rdi todavía tiene list
-    mov rbx, rdi            ; rbx = list
+    mov rbx, rdi            ; list
     mov rcx, [rbx]          ; list->first
     test rcx, rcx
     je .add_first_node
 
-    ; agregar al final de la lista existente
-    mov rcx, [rbx + 8]      ; rcx = list->last
-    mov [rcx], rax          ; last->next = new_node
-    mov [rax + 8], rcx      ; new_node->previous = last
-    mov [rbx + 8], rax      ; list->last = new_node
+    ; agregar al final
+    mov rcx, [rbx + 8]      ; list->last
+    mov [rcx], rax          ; last->next = node
+    mov [rax + 8], rcx      ; node->previous = last
+    mov [rbx + 8], rax      ; list->last = node
     jmp .end_add_node
 
 .add_first_node:
-    mov [rbx], rax          ; list->first = new_node
-    mov [rbx + 8], rax      ; list->last = new_node
+    mov [rbx], rax          ; list->first = node
+    mov [rbx + 8], rax      ; list->last = node
 
 .end_add_node:
     ret
@@ -100,33 +91,32 @@ string_proc_list_add_node_asm:
 string_proc_list_concat_asm:
     ; rdi = list, sil = type, rdx = hash
 
-    ; hacer strdup inicial (simulate en C con str_concat y "")
-    mov rdi, rdx
-    call strdup
+    ; inicializar resultado con str_concat("", hash)
+    mov rdi, empty_string
+    mov rsi, rdx
+    call str_concat
     mov rbx, rax            ; rbx = result
 
-    ; recorrer la lista
     mov rcx, [rdi]          ; rcx = list->first
 
 .loop_concat:
     test rcx, rcx
     je .done_concat
 
-    ; comparar tipo
-    mov al, byte [rcx + 16] ; tipo del nodo
+    mov al, byte [rcx + 16] ; tipo actual
     cmp al, sil
     jne .next_node
 
-    ; concatenar
-    mov rdi, rbx            ; resultado actual
+    ; concatenar si coincide tipo
+    mov rdi, rbx
     mov rsi, [rcx + 24]     ; nodo->hash
-    call str_concat         ; str_concat(result, nodo->hash)
-    mov rdi, rbx            ; liberar string anterior
+    call str_concat
+    mov rdi, rbx
     call free
-    mov rbx, rax            ; nuevo resultado
+    mov rbx, rax            ; nuevo result
 
 .next_node:
-    mov rcx, [rcx]          ; ir al siguiente nodo
+    mov rcx, [rcx]          ; next
     jmp .loop_concat
 
 .done_concat:
