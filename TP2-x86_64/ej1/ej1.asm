@@ -91,6 +91,9 @@ string_proc_list_add_node_asm:
 string_proc_list_concat_asm:
     ; rdi = list, sil = type, rdx = hash
 
+    test rdi, rdi
+    je .return_hash_copy
+
     push rdi               ; guardar puntero a list
 
     mov rdi, empty_string
@@ -123,4 +126,10 @@ string_proc_list_concat_asm:
 
 .done_concat:
     mov rax, rbx
+    ret
+
+.return_hash_copy:
+    mov rdi, empty_string
+    mov rsi, rdx
+    call str_concat
     ret
