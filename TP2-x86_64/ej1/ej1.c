@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "ej1.h"
 #include <string.h>  
 
@@ -57,9 +58,9 @@ char* string_proc_list_concat(string_proc_list* list, uint8_t type, char* hash) 
 /** AUX FUNCTIONS **/
 
 void string_proc_list_destroy(string_proc_list* list){
+    if (!list) return;  // <-- Esta línea evita el segfault
 
-	/* borro los nodos: */
-	string_proc_node* current_node	= list->first;
+    string_proc_node* current_node = list->first;
 	string_proc_node* next_node		= NULL;
 	while(current_node != NULL){
 		next_node = current_node->next;
