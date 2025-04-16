@@ -84,11 +84,10 @@ string_proc_list_concat_asm:
     test rdx, rdx
     je .return_hash_copy
 
-    push rbx
     push rsi
 
     mov r8, rdi                 ; guardar list
-    mov dl, sil                ; guardar type
+    mov dl, sil                 ; guardar type
 
     ; resultado = str_concat("", hash)
     mov rdi, empty_string
@@ -97,7 +96,6 @@ string_proc_list_concat_asm:
     mov rbx, rax                ; resultado parcial
 
     pop rsi
-    pop rbx
 
     mov rcx, [r8]               ; rcx = list->first
 
