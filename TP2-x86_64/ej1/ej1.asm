@@ -1,4 +1,4 @@
-; /** defines bool y puntero **/
+; === DEFINES ===
 %define NULL 0
 %define TRUE 1
 %define FALSE 0
@@ -17,103 +17,101 @@ extern malloc
 extern free
 extern str_concat
 
-; ---------------------------------------------
-; string_proc_list_create_asm()
-; Retorna un puntero a una lista vacía
-; ---------------------------------------------
+; === string_proc_list_create_asm() ===
+; Devuelve un puntero a una lista vacía
 string_proc_list_create_asm:
     mov edi, 16
     call malloc
     test rax, rax
     je .return_null
-    mov qword [rax], 0
-    mov qword [rax + 8], 0
+    mov qword [rax], 0        ; first = NULL
+    mov qword [rax + 8], 0    ; last = NULL
     ret
 .return_null:
     xor eax, eax
     ret
 
-; ---------------------------------------------
-; string_proc_node_create_asm(uint8_t type, char* hash)
-; ---------------------------------------------
+; === string_proc_node_create_asm(uint8_t type, char* hash) ===
 string_proc_node_create_asm:
     mov edi, 32
     call malloc
     test rax, rax
     je .return_null_node
-    mov qword [rax], 0
-    mov qword [rax + 8], 0
+    mov qword [rax], 0        ; next = NULL
+    mov qword [rax + 8], 0    ; previous = NULL
     movzx edx, dil
-    mov byte [rax + 16], dl
-    mov qword [rax + 24], rsi
+    mov byte [rax + 16], dl   ; type
+    mov qword [rax + 24], rsi ; hash
     ret
 .return_null_node:
     xor eax, eax
     ret
 
-; ---------------------------------------------
-; string_proc_list_add_node_asm(string_proc_list* list, uint8_t type, char* hash)
-; ---------------------------------------------
+; === string_proc_list_add_node_asm(list, type, hash) ===
 string_proc_list_add_node_asm:
     test rdi, rdi
     je .done
     push rbx
-    mov rbx, rdi            ; backup de list
-    movzx edi, sil          ; type → edi
-    mov rsi, rdx            ; hash
+    mov rbx, rdi              ; list
+    movzx edi, sil            ; type
+    mov rsi, rdx              ; hash
     call string_proc_node_create_asm
     test rax, rax
     je .restore
-    mov rcx, [rbx + 8]      ; list->last
+    mov rcx, [rbx + 8]        ; list->last
     test rcx, rcx
     je .first_node
-    mov [rax + 8], rcx      ; node->previous = last
-    mov [rcx], rax          ; last->next = node
-    mov [rbx + 8], rax      ; list->last = node
+    mov [rax + 8], rcx        ; node->previous = last
+    mov [rcx], rax            ; last->next = node
+    mov [rbx + 8], rax        ; list->last = node
     jmp .restore
 .first_node:
-    mov [rbx], rax
-    mov [rbx + 8], rax
+    mov [rbx], rax            ; list->first = node
+    mov [rbx + 8], rax        ; list->last = node
 .restore:
     pop rbx
 .done:
     ret
 
-; ---------------------------------------------
-; string_proc_list_concat_asm(string_proc_list* list, uint8_t type, char* hash)
-; ---------------------------------------------
+; === string_proc_list_concat_asm(list, type, hash) ===
 string_proc_list_concat_asm:
     test rdi, rdi
     je .return_hash_copy
     test rdx, rdx
     je .return_hash_copy
 
+    ; Backup registros y valores importantes
     push rbx
     push rsi
-    mov dl, sil             ; guardar tipo en dl
+    mov r8, rdi               ; backup de list
+    mov dl, sil               ; backup del type
+
+    ; Concatenar hash inicial
     mov rdi, empty_string
-    mov rsi, rdx            ; hash
+    mov rsi, rdx
     call str_concat
-    mov rbx, rax            ; resultado parcial
+    mov rbx, rax              ; resultado parcial
     pop rsi
     pop rbx
 
-    mov rcx, [rdi]          ; nodo actual = list->first
+    mov rcx, [r8]             ; nodo actual = list->first
 .loop:
     test rcx, rcx
     je .done
-    mov al, byte [rcx + 16] ; nodo->type
-    cmp al, dl              ; comparar con tipo guardado
+    mov al, byte [rcx + 16]   ; nodo->type
+    cmp al, dl
     jne .next
-    mov rdi, rbx
-    mov rsi, [rcx + 24]     ; nodo->hash
+
+    mov rdi, rbx              ; resultado actual
+    mov rsi, [rcx + 24]       ; nodo->hash
     call str_concat
     mov rdi, rbx
     call free
-    mov rbx, rax
+    mov rbx, rax              ; nuevo resultado
 .next:
-    mov rcx, [rcx]          ; nodo = nodo->next
+    mov rcx, [rcx]            ; nodo = nodo->next
     jmp .loop
+
 .done:
     mov rax, rbx
     ret
