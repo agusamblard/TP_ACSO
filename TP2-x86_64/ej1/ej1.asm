@@ -23,8 +23,8 @@ string_proc_list_create_asm:
     test rax, rax
     jz .fail
 
-    mov qword [rax], NULL
-    mov qword [rax + 8], NULL
+    mov qword [rax], NULL        ; list->first
+    mov qword [rax + 8], NULL    ; list->last
     ret
 
 .fail:
@@ -37,25 +37,22 @@ string_proc_list_create_asm:
 string_proc_node_create_asm:
     ; rdi = type (uint8)
     ; rsi = hash (char*)
-    push rdi
-    push rsi
+
+    mov rbx, rdi        ; guardar type en bl
+    mov rcx, rsi        ; guardar hash en rcx
 
     mov rdi, 32
     call malloc
     test rax, rax
     jz .fail_create
-    mov rbx, rax
 
-    mov qword [rbx], 0        ; next
-    mov qword [rbx + 8], 0    ; previous
+    mov rdx, rax        ; rdx = nuevo nodo
+    mov qword [rdx], 0        ; next
+    mov qword [rdx + 8], 0    ; previous
+    mov byte [rdx + 16], bl   ; type
+    mov qword [rdx + 24], rcx ; hash
 
-    pop rsi
-    pop rdi
-
-    mov [rbx + 16], dil       ; type
-    mov [rbx + 24], rsi       ; hash
-
-    mov rax, rbx
+    mov rax, rdx
     ret
 
 .fail_create:
@@ -69,6 +66,7 @@ string_proc_list_add_node_asm:
     ; rdi = list
     ; rsi = type
     ; rdx = hash
+
     push rbp
     mov rbp, rsp
 
@@ -99,8 +97,6 @@ string_proc_list_add_node_asm:
     mov [rdi + 8], r10        ; list->last = new
 
 .error:
-    ; Print error message (if required, implement a mechanism for error reporting)
-    ; For now, just return without modifying the list
     pop rbp
     ret
 
@@ -115,6 +111,7 @@ string_proc_list_concat_asm:
     ; rdi = list
     ; rsi = type
     ; rdx = initial hash
+
     push rbp
     mov rbp, rsp
 
@@ -143,5 +140,47 @@ string_proc_list_concat_asm:
 
 .return:
     mov rax, rdx
+    pop rbp
+    ret
+
+; =========================================================
+; string_proc_node_destroy_asm
+; =========================================================
+string_proc_node_destroy_asm:
+    ; rdi = node
+    test rdi, rdi
+    jz .done
+    call free
+.done:
+    ret
+
+; =========================================================
+; string_proc_list_destroy_asm
+; =========================================================
+string_proc_list_destroy_asm:
+    ; rdi = list
+    push rbp
+    mov rbp, rsp
+
+    test rdi, rdi
+    jz .end
+
+    mov rbx, [rdi]  ; current = list->first
+
+.loop:
+    test rbx, rbx
+    jz .free_list
+
+    mov rdx, [rbx]       ; next = current->next
+    mov rsi, rbx         ; arg to free
+    call free
+    mov rbx, rdx         ; current = next
+    jmp .loop
+
+.free_list:
+    mov rsi, rdi
+    call free
+
+.end:
     pop rbp
     ret
