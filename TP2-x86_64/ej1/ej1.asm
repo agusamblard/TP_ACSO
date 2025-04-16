@@ -105,7 +105,9 @@ string_proc_list_concat_asm:
     test rcx, rcx
     je .done_concat
 
-    ; Validar nodo->hash no nulo antes de seguir
+    test rcx, rcx
+    je .next_node
+
     mov rsi, [rcx + 24]
     test rsi, rsi
     je .next_node
