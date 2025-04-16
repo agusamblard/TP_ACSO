@@ -105,25 +105,25 @@ string_proc_list_concat_asm:
     test rcx, rcx
     je .done_concat
 
-    mov al, byte [rcx + 16]     ; nodo->type
-    cmp al, dl
-    jne .next_node
-
-    ; validación: nodo->hash != NULL
+    ; Validar nodo->hash no nulo antes de seguir
     mov rsi, [rcx + 24]
     test rsi, rsi
     je .next_node
 
+    mov al, byte [rcx + 16]     ; nodo->type
+    cmp al, dl
+    jne .next_node
+
     mov rdi, rbx
-    call str_concat             ; nuevo resultado en rax
+    call str_concat
     test rax, rax
-    je .next_node               ; si falla, saltear
+    je .next_node
     mov rdi, rbx
     call free
-    mov rbx, rax                ; actualizar resultado
+    mov rbx, rax
 
 .next_node:
-    mov rcx, [rcx]              ; avanzar al siguiente nodo
+    mov rcx, [rcx]
     jmp .loop
 
 .done_concat:
