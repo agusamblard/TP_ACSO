@@ -1,10 +1,9 @@
+; /** defines bool y puntero **/
 %define NULL 0
 %define TRUE 1
 %define FALSE 0
 
 section .data
-empty_string db 0
-
 section .text
 
 global string_proc_list_create_asm
@@ -15,123 +14,168 @@ global string_proc_list_concat_asm
 extern malloc
 extern free
 extern str_concat
+extern strlen
+extern strcpy
+extern strcat
+extern fprintf
 
-; === string_proc_list_create_asm() ===
+;---------------------------
+; string_proc_list_add_node_asm
+;-------------------------------
 string_proc_list_create_asm:
-    mov edi, 16
-    call malloc
-    test rax, rax
-    je .return_null_list
-    mov qword [rax], 0         ; first = NULL
-    mov qword [rax + 8], 0     ; last = NULL
-    ret
-.return_null_list:
-    xor eax, eax
+    push    rbp
+    mov     rbp, rsp
+    sub     rsp, 16
+    mov     edi, 16
+    call    malloc
+    mov     [rbp-8], rax
+    cmp     qword [rbp-8], 0
+    jne     .init_list_fields
+    mov     eax, 0
+    jmp     .end_list_create
+.init_list_fields:
+    mov     rax, [rbp-8]
+    mov     qword [rax], 0
+    mov     rax, [rbp-8]
+    mov     qword [rax+8], 0
+    mov     rax, [rbp-8]
+.end_list_create:
+    leave
     ret
 
-; === string_proc_node_create_asm(uint8_t type, char* hash) ===
+;---------------------------
+; string_proc_list_create_asm
+;-------------------------------
 string_proc_node_create_asm:
-    mov edi, 32
-    call malloc
-    test rax, rax
-    je .return_null_node
-    mov qword [rax], 0          ; next = NULL
-    mov qword [rax + 8], 0      ; previous = NULL
-    movzx edx, dil              ; type → edx
-    mov byte [rax + 16], dl
-    mov qword [rax + 24], rsi   ; hash
-    ret
-.return_null_node:
-    xor eax, eax
+    push    rbp
+    mov     rbp, rsp
+    sub     rsp, 32
+    mov     eax, edi
+    mov     [rbp-32], rsi
+    mov     [rbp-20], al
+    mov     edi, 32
+    call    malloc
+    mov     [rbp-8], rax
+    cmp     qword [rbp-8], 0
+    jne     .init_node_fields
+    mov     eax, 0
+    jmp     .exit_add_node
+.init_node_fields:
+    mov     rax, [rbp-8]
+    mov     qword [rax], 0
+    mov     rax, [rbp-8]
+    mov     qword [rax+8], 0
+    mov     rax, [rbp-8]
+    movzx   edx, byte [rbp-20]
+    mov     [rax+16], dl
+    mov     rax, [rbp-8]
+    mov     rdx, [rbp-32]
+    mov     [rax+24], rdx
+    mov     rax, [rbp-8]
+.exit_add_node:
+    leave
     ret
 
-; === string_proc_list_add_node_asm(list, type, hash) ===
+;-------------------------------
+; string_proc_list_add_node_asm
+;-------------------------------
 string_proc_list_add_node_asm:
-    test rdi, rdi
-    je .done_add_node
-
-    push rbx
-    mov rbx, rdi                ; backup list
-    movzx edi, sil              ; type → edi
-    mov rsi, rdx                ; hash
-    call string_proc_node_create_asm
-    test rax, rax
-    je .restore_add_node
-
-    mov rcx, [rbx + 8]          ; list->last
-    test rcx, rcx
-    je .first_node
-
-    ; caso general
-    mov [rax + 8], rcx          ; node->previous = last
-    mov [rcx], rax              ; last->next = node
-    mov [rbx + 8], rax          ; list->last = node
-    jmp .restore_add_node
-
-.first_node:
-    mov [rbx], rax              ; list->first = node
-    mov [rbx + 8], rax          ; list->last = node
-
-.restore_add_node:
-    pop rbx
-.done_add_node:
+    push    rbp
+    mov     rbp, rsp
+    sub     rsp, 48
+    mov     [rbp-24], rdi
+    mov     eax, esi
+    mov     [rbp-40], rdx
+    mov     [rbp-28], al
+    movzx   eax, byte [rbp-28]
+    mov     rdx, [rbp-40]
+    mov     rsi, rdx
+    mov     edi, eax
+    call    string_proc_node_create_asm
+    mov     [rbp-8], rax
+    cmp     qword [rbp-8], 0
+    je      .node_creation_failed
+    mov     rax, [rbp-24]
+    mov     rax, [rax]
+    test    rax, rax
+    jne     .add_to_end
+    mov     rax, [rbp-24]
+    mov     rdx, [rbp-8]
+    mov     [rax], rdx
+    mov     rax, [rbp-24]
+    mov     rdx, [rbp-8]
+    mov     [rax+8], rdx
+    jmp     .end_list_add_node
+.add_to_end:
+    mov     rax, [rbp-24]
+    mov     rax, [rax+8]
+    mov     rdx, [rbp-8]
+    mov     [rax], rdx
+    mov     rax, [rbp-24]
+    mov     rdx, [rax+8]
+    mov     rax, [rbp-8]
+    mov     [rax+8], rdx
+    mov     rax, [rbp-24]
+    mov     rdx, [rbp-8]
+    mov     [rax+8], rdx
+    jmp     .end_list_add_node
+.node_creation_failed:
+    nop
+.end_list_add_node:
+    leave
     ret
 
-; === string_proc_list_concat_asm(list, type, hash) ===
+;-------------------------------
+; string_proc_list_concat_asm
+;-------------------------------
 string_proc_list_concat_asm:
-    test rdi, rdi
-    je .return_hash_copy
-    test rdx, rdx
-    je .return_hash_copy
-
-    push rsi
-
-    mov r8, rdi                 ; guardar list
-    mov dl, sil                 ; guardar type
-
-    ; resultado = str_concat("", hash)
-    mov rdi, empty_string
-    mov rsi, rdx
-    call str_concat
-    mov rbx, rax                ; resultado parcial
-
-    pop rsi
-
-    mov rcx, [r8]               ; rcx = list->first
-
-.loop:
-    test rcx, rcx
-    je .done_concat
-
-    test rcx, rcx
-    js .next_node
-
-    mov rsi, [rcx + 24]
-    test rsi, rsi
-    je .next_node
-
-    mov al, byte [rcx + 16]     ; nodo->type
-    cmp al, dl
-    jne .next_node
-
-    mov rdi, rbx
-    call str_concat
-    test rax, rax
-    je .next_node
-    mov rdi, rbx
-    call free
-    mov rbx, rax
-
-.next_node:
-    mov rcx, [rcx]
-    jmp .loop
-
-.done_concat:
-    mov rax, rbx
-    ret
-
-.return_hash_copy:
-    mov rdi, empty_string
-    mov rsi, rdx
-    call str_concat
+    push    rbp
+    mov     rbp, rsp
+    sub     rsp, 64
+    mov     [rbp-40], rdi
+    mov     eax, esi
+    mov     [rbp-56], rdx
+    mov     [rbp-44], al
+    mov     rax, [rbp-40]
+    mov     rax, [rax]
+    mov     [rbp-8], rax
+    mov     qword [rbp-16], 0
+    jmp     .loop_check
+.loop_body:
+    mov     rax, [rbp-8]
+    movzx   eax, byte [rax+16]
+    cmp     byte [rbp-44], al
+    jne     .advance_to_next
+    cmp     qword [rbp-16], 0
+    jne     .concat_and_free_prev
+    mov     rax, [rbp-8]
+    mov     rdx, [rax+24]
+    mov     rax, [rbp-56]
+    mov     rsi, rdx
+    mov     rdi, rax
+    call    str_concat
+    mov     [rbp-16], rax
+    jmp     .advance_to_next
+.concat_and_free_prev:
+    mov     rax, [rbp-8]
+    mov     rdx, [rax+24]
+    mov     rax, [rbp-16]
+    mov     rsi, rdx
+    mov     rdi, rax
+    call    str_concat
+    mov     [rbp-24], rax
+    mov     rax, [rbp-16]
+    mov     rdi, rax
+    call    free
+    mov     rax, [rbp-24]
+    mov     [rbp-16], rax
+.advance_to_next:
+    mov     rax, [rbp-8]
+    mov     rax, [rax]
+    mov     [rbp-8], rax
+.loop_check:
+    cmp     qword [rbp-8], 0
+    jne     .loop_body
+    mov     rax, [rbp-16]
+    leave
     ret
