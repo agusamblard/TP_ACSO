@@ -7,6 +7,7 @@
 
 #define USE_ASM_IMPL 0
 
+
 /** Lista **/
 typedef struct string_proc_list_t {
 	struct string_proc_node_t* first;
