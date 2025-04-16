@@ -1,5 +1,9 @@
-; === Defines ===
 %define NULL 0
+%define TRUE 1
+%define FALSE 0
+
+section .data
+empty_string db 0
 
 section .text
 
@@ -7,180 +11,128 @@ global string_proc_list_create_asm
 global string_proc_node_create_asm
 global string_proc_list_add_node_asm
 global string_proc_list_concat_asm
-global string_proc_node_destroy_asm
-global string_proc_list_destroy_asm
 
 extern malloc
 extern free
 extern str_concat
 
-; =========================================================
-; string_proc_list_create_asm
-; =========================================================
+; === string_proc_list_create_asm() ===
+; Devuelve puntero a lista vacía (first = last = NULL)
 string_proc_list_create_asm:
-    mov rdi, 16
+    mov edi, 16
     call malloc
     test rax, rax
-    jz .fail
-
-    mov qword [rax], NULL        ; list->first
-    mov qword [rax + 8], NULL    ; list->last
+    je .return_null_list
+    mov qword [rax], 0         ; first = NULL
+    mov qword [rax + 8], 0     ; last = NULL
+    ret
+.return_null_list:
+    xor eax, eax
     ret
 
-.fail:
-    xor rax, rax
-    ret
-
-; =========================================================
-; string_proc_node_create_asm
-; =========================================================
+; === string_proc_node_create_asm(uint8_t type, char* hash) ===
 string_proc_node_create_asm:
-    ; rdi = type (uint8)
-    ; rsi = hash (char*)
-
-    mov rbx, rdi        ; guardar type en bl
-    mov rcx, rsi        ; guardar hash en rcx
-
-    mov rdi, 32
+    mov edi, 32
     call malloc
     test rax, rax
-    jz .fail_create
-
-    mov rdx, rax        ; rdx = nuevo nodo
-    mov qword [rdx], 0        ; next
-    mov qword [rdx + 8], 0    ; previous
-    mov byte [rdx + 16], bl   ; type
-    mov qword [rdx + 24], rcx ; hash
-
-    mov rax, rdx
+    je .return_null_node
+    mov qword [rax], 0          ; next = NULL
+    mov qword [rax + 8], 0      ; previous = NULL
+    movzx edx, dil              ; type
+    mov byte [rax + 16], dl
+    mov qword [rax + 24], rsi   ; hash
+    ret
+.return_null_node:
+    xor eax, eax
     ret
 
-.fail_create:
-    xor rax, rax
-    ret
-
-; =========================================================
-; string_proc_list_add_node_asm
-; =========================================================
+; === string_proc_list_add_node_asm(list, type, hash) ===
 string_proc_list_add_node_asm:
-    ; rdi = list
-    ; rsi = type
-    ; rdx = hash
-
-    push rbp
-    mov rbp, rsp
-
     test rdi, rdi
-    jz .error
+    je .done_add_node           ; si list == NULL, salir
 
-    mov r8, rsi
-    mov r9, rdx
-    mov rsi, r8
-    mov rdx, r9
+    push rbx
+    mov rbx, rdi                ; rbx = list
+    movzx edi, sil              ; type
+    mov rsi, rdx                ; hash
     call string_proc_node_create_asm
     test rax, rax
-    jz .done
+    je .restore_add_node        ; si node == NULL, salir
 
-    mov r10, rax              ; new node
-    mov r11, [rdi + 8]        ; current tail
+    mov rcx, [rbx + 8]          ; list->last
+    test rcx, rcx
+    je .first_node
 
-    test r11, r11
-    jz .empty_list
+    ; caso general (lista no vacía)
+    mov [rax + 8], rcx          ; node->previous = last
+    mov [rcx], rax              ; last->next = node (¡aquí puede fallar si rcx inválido!)
+    mov [rbx + 8], rax          ; list->last = node
+    jmp .restore_add_node
 
-    mov [r11], r10            ; tail->next = new
-    mov [r10 + 8], r11        ; new->previous = tail
-    mov [rdi + 8], r10        ; list->last = new
-    jmp .done
+.first_node:
+    mov [rbx], rax              ; list->first = node
+    mov [rbx + 8], rax          ; list->last = node
 
-.empty_list:
-    mov [rdi], r10            ; list->first = new
-    mov [rdi + 8], r10        ; list->last = new
-
-.error:
-    pop rbp
+.restore_add_node:
+    pop rbx
+.done_add_node:
     ret
 
-.done:
-    pop rbp
-    ret
-
-; =========================================================
-; string_proc_list_concat_asm
-; =========================================================
+; === string_proc_list_concat_asm(list, type, hash) ===
 string_proc_list_concat_asm:
-    ; rdi = list
-    ; rsi = type
-    ; rdx = initial hash
-
-    push rbp
-    mov rbp, rsp
-
     test rdi, rdi
-    jz .return
+    je .return_hash_copy
     test rdx, rdx
-    jz .return
+    je .return_hash_copy
 
-    mov r8, [rdi]             ; current = list->first
-.loop:
-    test r8, r8
-    jz .return
+    ; BACKUP registros y valores clave
+    push rbx
+    push rsi
+    mov r8, rdi                 ; r8 = list
+    mov dl, sil                 ; dl = type
 
-    movzx r9, byte [r8 + 16]  ; node->type
-    cmp r9b, sil
-    jne .next
-
-    mov rdi, rdx              ; accumulated
-    mov rsi, [r8 + 24]        ; node->hash
+    ; resultado = str_concat("", hash)
+    mov rdi, empty_string
+    mov rsi, rdx
     call str_concat
-    mov rdx, rax              ; update accumulator
+    mov rbx, rax                ; rbx = resultado parcial
 
-.next:
-    mov r8, [r8]              ; current = current->next
-    jmp .loop
+    pop rsi
+    pop rbx
 
-.return:
-    mov rax, rdx
-    pop rbp
-    ret
-
-; =========================================================
-; string_proc_node_destroy_asm
-; =========================================================
-string_proc_node_destroy_asm:
-    ; rdi = node
-    test rdi, rdi
-    jz .done
-    call free
-.done:
-    ret
-
-; =========================================================
-; string_proc_list_destroy_asm
-; =========================================================
-string_proc_list_destroy_asm:
-    ; rdi = list
-    push rbp
-    mov rbp, rsp
-
-    test rdi, rdi
-    jz .end
-
-    mov rbx, [rdi]  ; current = list->first
+    ; recorrer lista
+    mov rcx, [r8]               ; nodo actual = list->first
 
 .loop:
-    test rbx, rbx
-    jz .free_list
+    test rcx, rcx
+    je .done_concat
 
-    mov rdx, [rbx]       ; next = current->next
-    mov rsi, rbx         ; arg to free
+    ; si nodo->type == type
+    mov al, byte [rcx + 16]
+    cmp al, dl
+    jne .next_node
+
+    ; concatenar resultado + nodo->hash
+    mov rdi, rbx
+    mov rsi, [rcx + 24]
+    test rsi, rsi               ; asegurarse que nodo->hash != NULL
+    je .next_node
+
+    call str_concat
+    mov rdi, rbx
     call free
-    mov rbx, rdx         ; current = next
+    mov rbx, rax                ; resultado = nuevo resultado
+
+.next_node:
+    mov rcx, [rcx]              ; avanzar al siguiente nodo
     jmp .loop
 
-.free_list:
-    mov rsi, rdi
-    call free
+.done_concat:
+    mov rax, rbx
+    ret
 
-.end:
-    pop rbp
+.return_hash_copy:
+    mov rdi, empty_string
+    mov rsi, rdx
+    call str_concat
     ret
