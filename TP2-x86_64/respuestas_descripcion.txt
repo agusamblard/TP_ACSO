@@ -1,0 +1,29 @@
+Agustín Amblard 
+aamblard@udesa.edu.ar 
+
+La función phase_1 compara el string que se le pasa como input con un string almacenado
+ en una dirección específica del binario (ubicada en rip + 0xc7c6a, o sea, una cadena 
+ fija dentro del ejecutable). Lo hace utilizando la función strings_not_equal.
+ La función strings_not_equal retorna 0 si las cadenas son iguales, y 1 si son diferentes.
+ Lo resolvimos usando gdb para ejecutar la bomba con un breakpoint en phase_1.
+ Inspeccionamos la dirección que se carga con lea rsi,[rip+0xc7c6a].
+ Copiamos la cadena encontrada y la pegamos como primera línea en input.txt.
+
+
+
+La función phase_2 espera tres valores numéricos en el input separados por espacios. Internamente, hace lo siguiente:
+Usa call 0x4011c0 tres veces para dividir el input (rdi) en tres partes:
+rbp (primer número), rbx (segundo número) y r12 (tercer número).
+Cada uno de los tokens es convertido a número con strtoq. 
+Luego se realiza la siguiente funcion:
+int mitad = (primer ^ segundo) >> 1;
+if (mitad != tercer) explode_bomb();
+Finalmente se llama a misterio(tercer), que indica que si el tercer numero no es negativo (edi>=0), la bomba explota. 
+
+
+Esta fase pedía ingresar una palabra y un número. El programa compara el número con el valor
+ retornado por una función llamada cuenta, que realiza una búsqueda recursiva de la palabra en un arreglo 
+ de strings y acumula los valores ASCII de los caracteres recorridos durante la búsqueda. 
+ Si el número ingresado no coincide con ese valor, la bomba explota. Para resolverla, analizamos la función cuenta y 
+ determinamos que el valor retornado para la palabra "aboquillar" es 685. Por eso, ingresamos:
+aboquillar 685 y la fase se desactivó correctamente.
