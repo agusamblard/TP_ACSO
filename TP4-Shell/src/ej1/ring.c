@@ -35,9 +35,8 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    int pipes[n][2];
-    int pipe_padre_hijo[2];
-    int pipe_hijo_padre[2];
+    int pipes[n][2];                // pipes entre procesos en anillo
+    int pipe_padre[2];              // padre <-> proceso s
 
     for (int i = 0; i < n; i++) {
         if (pipe(pipes[i]) == -1) {
@@ -46,8 +45,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (pipe(pipe_padre_hijo) == -1 || pipe(pipe_hijo_padre) == -1) {
-        perror("pipe padre-hijo");
+    if (pipe(pipe_padre) == -1) {
+        perror("pipe padre-hijo s");
         exit(EXIT_FAILURE);
     }
 
@@ -58,21 +57,27 @@ int main(int argc, char *argv[]) {
             perror("fork");
             exit(EXIT_FAILURE);
         } else if (pids[i] == 0) {
-            int valor;
+            // HIJO i
             for (int j = 0; j < n; j++) {
                 if (j != i) close(pipes[j][WRITE]);
                 if ((j + 1) % n != i) close(pipes[j][READ]);
             }
 
-            close(pipe_padre_hijo[WRITE]);
-            close(pipe_hijo_padre[READ]);
+            if (i != s) {
+                close(pipe_padre[READ]);
+                close(pipe_padre[WRITE]);
+            }
+
+            int valor;
 
             if (i == s) {
-                if (read(pipe_padre_hijo[READ], &valor, sizeof(valor)) <= 0) {
+                // lee del padre primero
+                close(pipe_padre[WRITE]);
+                if (read(pipe_padre[READ], &valor, sizeof(valor)) <= 0) {
                     perror("read inicial del padre");
                     exit(EXIT_FAILURE);
                 }
-                close(pipe_padre_hijo[READ]);
+                close(pipe_padre[READ]);
             } else {
                 int prev = (i - 1 + n) % n;
                 if (read(pipes[prev][READ], &valor, sizeof(valor)) <= 0) {
@@ -85,11 +90,16 @@ int main(int argc, char *argv[]) {
             valor++;
 
             if ((i + 1) % n == s) {
-                if (write(pipe_hijo_padre[WRITE], &valor, sizeof(valor)) == -1) {
-                    perror("write al padre");
+                // si el siguiente es el iniciador, se lo devuelve al padre
+                if (i == s) {
+                    fprintf(stderr, "Error: ciclo detectado en el mismo proceso\n");
                     exit(EXIT_FAILURE);
                 }
-                close(pipe_hijo_padre[WRITE]);
+                if (write(pipe_padre[WRITE], &valor, sizeof(valor)) == -1) {
+                    perror("write final al padre");
+                    exit(EXIT_FAILURE);
+                }
+                close(pipe_padre[WRITE]);
             } else {
                 if (write(pipes[i][WRITE], &valor, sizeof(valor)) == -1) {
                     perror("write al siguiente");
@@ -102,25 +112,26 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // PADRE
     for (int i = 0; i < n; i++) {
         close(pipes[i][READ]);
         close(pipes[i][WRITE]);
     }
-    close(pipe_padre_hijo[READ]);
-    close(pipe_hijo_padre[WRITE]);
 
-    if (write(pipe_padre_hijo[WRITE], &c, sizeof(c)) == -1) {
+    close(pipe_padre[READ]);
+    if (write(pipe_padre[WRITE], &c, sizeof(c)) == -1) {
         perror("padre write a hijo s");
         exit(EXIT_FAILURE);
     }
-    close(pipe_padre_hijo[WRITE]);
+    close(pipe_padre[WRITE]);
 
+    close(pipe_padre[WRITE]); // asegurarse
     int resultado;
-    if (read(pipe_hijo_padre[READ], &resultado, sizeof(resultado)) <= 0) {
+    if (read(pipe_padre[READ], &resultado, sizeof(resultado)) <= 0) {
         perror("padre read final");
         exit(EXIT_FAILURE);
     }
-    close(pipe_hijo_padre[READ]);
+    close(pipe_padre[READ]);
 
     printf("El resultado final es: %d\n", resultado);
 
