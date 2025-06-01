@@ -19,21 +19,23 @@ void parse_args(char *line, char **args) {
             char quote = *line++;
             args[i++] = line;
             while (*line && *line != quote) line++;
-            if (*line) *line++ = '\0';
+            if (*line) {
+                *line = '\0';
+                line++;
+            }
         } else {
             args[i++] = line;
             while (*line && !isspace(*line)) line++;
-            if (*line) *line++ = '\0';
+            if (*line) {
+                *line = '\0';
+                line++;
+            }
         }
-    }
-
-    if (i >= MAX_ARGS - 1) {
-        fprintf(stderr, "Error: se excedió el máximo de argumentos (%d)\n", MAX_ARGS - 1);
-        exit(1);
     }
 
     args[i] = NULL;
 }
+
 
 int main() {
     char command[1024];
