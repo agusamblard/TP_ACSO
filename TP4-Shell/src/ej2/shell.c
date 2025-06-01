@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -36,7 +35,6 @@ void parse_args(char *line, char **args) {
     args[i] = NULL;
 }
 
-
 int main() {
     char command[1024];
     char *commands[MAX_COMMANDS];
@@ -58,8 +56,10 @@ int main() {
             continue;
         }
 
+        // Nueva lógica de tokenizado para detectar pipes vacíos
         command_count = 0;
-        char *token = strtok(command, "|");
+        char *saveptr;
+        char *token = strtok_r(command, "|", &saveptr);
         while (token != NULL && command_count < MAX_COMMANDS) {
             while (*token && isspace(*token)) token++;
             if (*token == '\0') {
@@ -68,7 +68,7 @@ int main() {
                 break;
             }
             commands[command_count++] = token;
-            token = strtok(NULL, "|");
+            token = strtok_r(NULL, "|", &saveptr);
         }
 
         if (command_count == -1) continue;
