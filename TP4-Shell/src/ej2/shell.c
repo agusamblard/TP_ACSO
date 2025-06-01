@@ -95,18 +95,37 @@ int main() {
         }
 
         command_count = 0;
-        char *token = strtok(command, "|");
-
-        while (token != NULL && command_count < MAX_COMMANDS) {
-            while (*token && isspace(*token)) token++;
-            if (*token == '\0' || strspn(token, " \t") == strlen(token)) {
-                fprintf(stderr, "Error de sintaxis: pipe vacío\n");
-                command_count = -1;
-                break;
+        int in_quote = 0;
+        char quote_char = 0;
+        char *start = command;
+        for (char *p = command; *p; p++) {
+            if ((*p == '\'' || *p == '\"')) {
+                if (!in_quote) {
+                    in_quote = 1;
+                    quote_char = *p;
+                } else if (*p == quote_char) {
+                    in_quote = 0;
+                }
             }
-            commands[command_count++] = token;
-            token = strtok(NULL, "|");
+            if (*p == '|' && !in_quote) {
+                *p = '\0';
+                while (*start && isspace(*start)) start++;
+                if (*start == '\0') {
+                    fprintf(stderr, "Error de sintaxis: pipe vacío\n");
+                    command_count = -1;
+                    break;
+                }
+                commands[command_count++] = start;
+                start = p + 1;
+            }
         }
+        if (command_count == -1) continue;
+
+        while (*start && isspace(*start)) start++;
+        if (*start != '\0') {
+            commands[command_count++] = start;
+        }
+
 
         if (command_count == -1) continue;
         if (command_count >= MAX_COMMANDS) {
