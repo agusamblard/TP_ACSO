@@ -7,7 +7,7 @@
 #include <ctype.h>
 
 #define MAX_COMMANDS 200
-#define MAX_ARGS 65  // 64 argumentos + NULL
+#define MAX_ARGS 65  // 64 args + NULL
 
 int comillas_balanceadas(const char *line) {
     char quote = 0;
@@ -56,7 +56,7 @@ void parse_args(char *line, char **args) {
 }
 
 int main() {
-    char command[2048];
+    char command[4096];
     char *commands[MAX_COMMANDS];
     int command_count = 0;
 
@@ -103,6 +103,10 @@ int main() {
         }
 
         if (command_count == -1) continue;
+        if (command_count >= MAX_COMMANDS) {
+            fprintf(stderr, "Error: se excedió el número máximo de comandos encadenados (%d)\n", MAX_COMMANDS);
+            continue;
+        }
 
         int pipes[MAX_COMMANDS - 1][2];
 
