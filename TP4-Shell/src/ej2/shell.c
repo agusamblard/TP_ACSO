@@ -57,14 +57,20 @@ int main() {
             continue;
         }
 
+        // Detectar pipe doble explícito (ej: echo hola || wc)
+        for (int i = 0; command[i] != '\0' && command[i + 1] != '\0'; i++) {
+            if (command[i] == '|' && command[i + 1] == '|') {
+                fprintf(stderr, "Error de sintaxis: pipe vacío\n");
+                goto continuar_loop;
+            }
+        }
+
         command_count = 0;
         char *token = strtok(command, "|");
 
         while (token != NULL && command_count < MAX_COMMANDS) {
-            // Salta espacios
             while (*token && isspace(*token)) token++;
 
-            // Detectar token vacío o solo espacios
             if (*token == '\0' || strspn(token, " \t") == strlen(token)) {
                 fprintf(stderr, "Error de sintaxis: pipe vacío\n");
                 command_count = -1;
@@ -122,6 +128,9 @@ int main() {
         for (int i = 0; i < command_count; i++) {
             wait(NULL);
         }
+
+        continuar_loop:
+        continue;
     }
 
     return 0;
