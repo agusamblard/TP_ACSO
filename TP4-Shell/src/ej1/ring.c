@@ -18,7 +18,12 @@ int main(int argc, char **argv) {
     }
 
     n = atoi(argv[1]);
-    buffer[0] = atoi(argv[2]);
+	char *endptr;
+	buffer[0] = strtol(argv[2], &endptr, 10);
+	if (*endptr != '\\0') {
+		fprintf(stderr, "Error: el valor inicial '%s' no es un número válido.\\n", argv[2]);
+		exit(1);
+	}
     start = atoi(argv[3]);
 
     if (n < 3) {
