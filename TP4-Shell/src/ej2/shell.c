@@ -7,7 +7,7 @@
 #include <ctype.h>
 
 #define MAX_COMMANDS 200
-#define MAX_ARGS 64
+#define MAX_ARGS 65  // 64 argumentos + NULL
 
 int comillas_balanceadas(const char *line) {
     char quote = 0;
@@ -26,9 +26,14 @@ int comillas_balanceadas(const char *line) {
 
 void parse_args(char *line, char **args) {
     int i = 0;
-    while (*line && i < MAX_ARGS - 1) {
+    while (*line) {
         while (isspace(*line)) line++;
         if (*line == '\0') break;
+
+        if (i >= MAX_ARGS - 1) {
+            fprintf(stderr, "Error: se excedió el máximo de argumentos (%d)\n", MAX_ARGS - 1);
+            exit(1);
+        }
 
         if (*line == '"' || *line == '\'') {
             char quote = *line++;
@@ -47,12 +52,11 @@ void parse_args(char *line, char **args) {
             }
         }
     }
-
     args[i] = NULL;
 }
 
 int main() {
-    char command[1024];
+    char command[2048];
     char *commands[MAX_COMMANDS];
     int command_count = 0;
 
@@ -89,13 +93,11 @@ int main() {
 
         while (token != NULL && command_count < MAX_COMMANDS) {
             while (*token && isspace(*token)) token++;
-
             if (*token == '\0' || strspn(token, " \t") == strlen(token)) {
                 fprintf(stderr, "Error de sintaxis: pipe vacío\n");
                 command_count = -1;
                 break;
             }
-
             commands[command_count++] = token;
             token = strtok(NULL, "|");
         }
