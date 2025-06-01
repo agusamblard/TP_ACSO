@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,14 +9,29 @@
 #define MAX_COMMANDS 200
 #define MAX_ARGS 64
 
-// Función para separar los argumentos de un comando
-void parse_args(char *command, char **args) {
+void parse_args(char *line, char **args) {
     int i = 0;
-    char *token = strtok(command, " \t");
-    while (token != NULL && i < MAX_ARGS - 1) {
-        args[i++] = token;
-        token = strtok(NULL, " \t");
+    while (*line && i < MAX_ARGS - 1) {
+        while (isspace(*line)) line++;
+        if (*line == '\0') break;
+
+        if (*line == '\"' || *line == '\'') {
+            char quote = *line++;
+            args[i++] = line;
+            while (*line && *line != quote) line++;
+            if (*line) *line++ = '\0';
+        } else {
+            args[i++] = line;
+            while (*line && !isspace(*line)) line++;
+            if (*line) *line++ = '\0';
+        }
     }
+
+    if (i >= MAX_ARGS - 1) {
+        fprintf(stderr, "Error: se excedió el máximo de argumentos (%d)\n", MAX_ARGS - 1);
+        exit(1);
+    }
+
     args[i] = NULL;
 }
 
@@ -30,24 +46,30 @@ int main() {
             fflush(stdout);
         }
 
-        if (fgets(command, sizeof(command), stdin) == NULL) {
-            break; // EOF (Ctrl+D)
+        if (fgets(command, sizeof(command), stdin) == NULL) break;
+        command[strcspn(command, "\n")] = '\0';
+
+        if (strcmp(command, "exit") == 0) break;
+
+        if (command[0] == '|' || command[strlen(command) - 1] == '|') {
+            fprintf(stderr, "Error de sintaxis: pipe al inicio o al final\n");
+            continue;
         }
 
-        command[strcspn(command, "\n")] = '\0'; // Eliminar salto de línea
-
-        if (strcmp(command, "exit") == 0) {
-            break;
-        }
-
-        // Separar comandos por '|'
         command_count = 0;
         char *token = strtok(command, "|");
         while (token != NULL && command_count < MAX_COMMANDS) {
-            while (*token && isspace(*token)) token++; // Trim left
+            while (*token && isspace(*token)) token++;
+            if (*token == '\0') {
+                fprintf(stderr, "Error de sintaxis: pipe vacío\n");
+                command_count = -1;
+                break;
+            }
             commands[command_count++] = token;
             token = strtok(NULL, "|");
         }
+
+        if (command_count == -1) continue;
 
         int pipes[MAX_COMMANDS - 1][2];
 
@@ -66,17 +88,13 @@ int main() {
             }
 
             if (pid == 0) {
-                // Redirección de entrada si no es el primero
                 if (i > 0) {
                     dup2(pipes[i - 1][0], STDIN_FILENO);
                 }
-
-                // Redirección de salida si no es el último
                 if (i < command_count - 1) {
                     dup2(pipes[i][1], STDOUT_FILENO);
                 }
 
-                // Cerrar todos los extremos de pipes en el hijo
                 for (int j = 0; j < command_count - 1; j++) {
                     close(pipes[j][0]);
                     close(pipes[j][1]);
@@ -90,13 +108,11 @@ int main() {
             }
         }
 
-        // Cerrar todos los pipes en el padre
         for (int i = 0; i < command_count - 1; i++) {
             close(pipes[i][0]);
             close(pipes[i][1]);
         }
 
-        // Esperar todos los hijos
         for (int i = 0; i < command_count; i++) {
             wait(NULL);
         }
