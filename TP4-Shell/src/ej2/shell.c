@@ -61,13 +61,16 @@ int main() {
         char *token = strtok(command, "|");
         int pipe_expected = 0;
 
-        while (token != NULL && command_count < MAX_COMMANDS) {
-            while (*token && isspace(*token)) token++;
-            if (*token == '\0') {
-                fprintf(stderr, "Error de sintaxis: pipe vacío\n");
-                command_count = -1;
-                break;
-            }
+
+        while (*token && isspace(*token)) token++;
+
+        // Si el token está vacío o es solo espacios
+        if (*token == '\0' || strspn(token, " \t") == strlen(token)) {
+            fprintf(stderr, "Error de sintaxis: pipe vacío\n");
+            command_count = -1;
+            break;
+        }
+
             commands[command_count++] = token;
             token = strtok(NULL, "|");
 
