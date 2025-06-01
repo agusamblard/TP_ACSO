@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -21,8 +22,8 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    int pipes[n][2];
-    int pipe_padre[2]; // comunicación entre hijo s y padre
+    int pipes[n][2];        // pipes entre hijos en anillo
+    int pipe_padre[2];      // comunicación hijo 's' → padre
 
     for (int i = 0; i < n; i++) {
         if (pipe(pipes[i]) == -1) {
@@ -42,27 +43,32 @@ int main(int argc, char *argv[]) {
             perror("fork");
             exit(EXIT_FAILURE);
         } else if (pid == 0) {
-            // Proceso hijo
-            for (int j = 0; j < n; j++) {
-                if (j != (i - 1 + n) % n) close(pipes[j][READ]);   // leo del anterior
-                if (j != i) close(pipes[j][WRITE]);                // escribo al siguiente
-            }
+            // HIJO
 
-            // Cierro lado de lectura del padre
-            close(pipe_padre[READ]);
+            // Cerrar extremos innecesarios
+            for (int j = 0; j < n; j++) {
+                if (j != (i - 1 + n) % n) close(pipes[j][READ]);
+                if (j != i) close(pipes[j][WRITE]);
+            }
+            // Cierro extremos del pipe padre
+            if (i != s) {
+                close(pipe_padre[WRITE]);
+            }
+            close(pipe_padre[READ]); // ningún hijo lee del padre
 
             int valor;
             read(pipes[(i - 1 + n) % n][READ], &valor, sizeof(int));
             valor++;
 
             if (i == s) {
-                // El mensaje volvió a s, se lo manda al padre
                 write(pipe_padre[WRITE], &valor, sizeof(int));
+                close(pipe_padre[WRITE]);
             } else {
-                // Lo reenvía al siguiente en el anillo
                 write(pipes[i][WRITE], &valor, sizeof(int));
             }
 
+            close(pipes[(i - 1 + n) % n][READ]);
+            close(pipes[i][WRITE]);
             exit(0);
         }
     }
@@ -72,9 +78,9 @@ int main(int argc, char *argv[]) {
         close(pipes[i][READ]);
         close(pipes[i][WRITE]);
     }
-    close(pipe_padre[WRITE]); // solo leerá
+    close(pipe_padre[WRITE]); // sólo va a leer
 
-    // Enviar valor inicial al proceso s
+    // Enviar valor inicial al hijo 's'
     write(pipes[s][WRITE], &c, sizeof(int));
 
     int resultado;
@@ -82,9 +88,8 @@ int main(int argc, char *argv[]) {
 
     printf("El resultado final es: %d\n", resultado);
 
-    for (int i = 0; i < n; i++) {
-        wait(NULL);
-    }
+    close(pipe_padre[READ]);
 
+    for (int i = 0; i < n; i++) wait(NULL);
     return 0;
 }
