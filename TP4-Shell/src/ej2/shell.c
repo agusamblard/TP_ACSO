@@ -15,7 +15,7 @@ void parse_args(char *line, char **args) {
         while (isspace(*line)) line++;
         if (*line == '\0') break;
 
-        if (*line == '\"' || *line == '\'') {
+        if (*line == '"' || *line == '\'') {
             char quote = *line++;
             args[i++] = line;
             while (*line && *line != quote) line++;
@@ -35,7 +35,6 @@ void parse_args(char *line, char **args) {
 
     args[i] = NULL;
 }
-
 
 int main() {
     char command[1024];
@@ -57,32 +56,24 @@ int main() {
             fprintf(stderr, "Error de sintaxis: pipe al inicio o al final\n");
             continue;
         }
+
         command_count = 0;
         char *token = strtok(command, "|");
-        int pipe_expected = 0;
 
+        while (token != NULL && command_count < MAX_COMMANDS) {
+            // Salta espacios
+            while (*token && isspace(*token)) token++;
 
-        while (*token && isspace(*token)) token++;
-
-        // Si el token está vacío o es solo espacios
-        if (*token == '\0' || strspn(token, " \t") == strlen(token)) {
-            fprintf(stderr, "Error de sintaxis: pipe vacío\n");
-            command_count = -1;
-            break;
-        }
+            // Detectar token vacío o solo espacios
+            if (*token == '\0' || strspn(token, " \t") == strlen(token)) {
+                fprintf(stderr, "Error de sintaxis: pipe vacío\n");
+                command_count = -1;
+                break;
+            }
 
             commands[command_count++] = token;
             token = strtok(NULL, "|");
-
-            // Si hay otro token, esperamos contenido. Si es vacío, será detectado arriba.
-            pipe_expected = 1;
         }
-
-        if (pipe_expected && command_count == 0) {
-            fprintf(stderr, "Error de sintaxis: solo pipes\n");
-            continue;
-        }
-
 
         if (command_count == -1) continue;
 
