@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    printf("Se crearán %i procesos, se enviará el mensaje %i desde proceso %i\n", n, buffer[0], start);
+
 
     int pipes[n][2];
     for (int i = 0; i < n; i++) {
@@ -58,14 +58,14 @@ int main(int argc, char **argv) {
             close(pipes[i][0]);    // Cierro lectura del mío
 
             if (i == start) {
-                printf("Proceso %d (PID %d) recibió el mensaje: %d\n", i, getpid(), buffer[0]);
+
                 buffer[0]++;
                 write(pipes[i][1], buffer, sizeof(int));
                 read(pipes[prev][0], buffer, sizeof(int));
                 printf("Proceso %d (PID %d) recibió el mensaje final: %d\n", i, getpid(), buffer[0]);
             } else {
                 read(pipes[prev][0], buffer, sizeof(int));
-                printf("Proceso %d (PID %d) recibió el mensaje: %d\n", i, getpid(), buffer[0]);
+
                 buffer[0]++;
                 write(pipes[i][1], buffer, sizeof(int));
             }
