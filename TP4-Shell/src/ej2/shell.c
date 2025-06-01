@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -35,6 +36,7 @@ void parse_args(char *line, char **args) {
     args[i] = NULL;
 }
 
+
 int main() {
     char command[1024];
     char *commands[MAX_COMMANDS];
@@ -55,11 +57,10 @@ int main() {
             fprintf(stderr, "Error de sintaxis: pipe al inicio o al final\n");
             continue;
         }
-
-        // Nueva lógica de tokenizado para detectar pipes vacíos
         command_count = 0;
-        char *saveptr;
-        char *token = strtok_r(command, "|", &saveptr);
+        char *token = strtok(command, "|");
+        int pipe_expected = 0;
+
         while (token != NULL && command_count < MAX_COMMANDS) {
             while (*token && isspace(*token)) token++;
             if (*token == '\0') {
@@ -68,8 +69,17 @@ int main() {
                 break;
             }
             commands[command_count++] = token;
-            token = strtok_r(NULL, "|", &saveptr);
+            token = strtok(NULL, "|");
+
+            // Si hay otro token, esperamos contenido. Si es vacío, será detectado arriba.
+            pipe_expected = 1;
         }
+
+        if (pipe_expected && command_count == 0) {
+            fprintf(stderr, "Error de sintaxis: solo pipes\n");
+            continue;
+        }
+
 
         if (command_count == -1) continue;
 
