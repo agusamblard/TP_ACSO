@@ -22,96 +22,103 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    int pipe_padre_hijo[2];
-    int pipe_hijo_padre[2];
+    int pipes[n][2];                // pipes entre hijos (anillo)
+    int pipe_padre_hijo[2];         // padre -> hijo s
+    int pipe_hijo_padre[2];         // hijo (nodo final) -> padre
+
+    for (int i = 0; i < n; i++) {
+        if (pipe(pipes[i]) == -1) {
+            perror("pipe");
+            exit(EXIT_FAILURE);
+        }
+    }
+
     if (pipe(pipe_padre_hijo) == -1 || pipe(pipe_hijo_padre) == -1) {
         perror("pipe padre-hijo");
         exit(EXIT_FAILURE);
     }
 
-    int prev_read = -1;  // extremo de lectura del anterior proceso
-    pid_t pid;
-
+    pid_t pids[n];
     for (int i = 0; i < n; i++) {
-        int actual_pipe[2];
-        if (i != (s - 1 + n) % n) {
-            if (pipe(actual_pipe) == -1) {
-                perror("pipe");
-                exit(EXIT_FAILURE);
-            }
-        }
-
-        pid = fork();
-        if (pid == -1) {
+        pids[i] = fork();
+        if (pids[i] < 0) {
             perror("fork");
             exit(EXIT_FAILURE);
-        } else if (pid == 0) {
-            // hijo i
-            int val;
+        } else if (pids[i] == 0) {
+            // Proceso hijo i
+            int valor;
+            for (int j = 0; j < n; j++) {
+                if (j != i) close(pipes[j][WRITE]);
+                if ((j + 1) % n != i) close(pipes[j][READ]);
+            }
+
+            close(pipe_padre_hijo[WRITE]); // los hijos no escriben al padre
+            close(pipe_hijo_padre[READ]);  // los hijos no leen del padre
 
             if (i == s) {
-                close(pipe_padre_hijo[WRITE]);
-                if (read(pipe_padre_hijo[READ], &val, sizeof(val)) <= 0) {
-                    perror("read padre-hijo");
+                // nodo de inicio: lee del padre
+                if (read(pipe_padre_hijo[READ], &valor, sizeof(valor)) <= 0) {
+                    perror("read inicial del padre");
                     exit(EXIT_FAILURE);
                 }
                 close(pipe_padre_hijo[READ]);
             } else {
-                if (read(prev_read, &val, sizeof(val)) <= 0) {
-                    perror("read anillo");
+                // resto: lee del anterior en el anillo
+                int prev = (i - 1 + n) % n;
+                if (read(pipes[prev][READ], &valor, sizeof(valor)) <= 0) {
+                    perror("read del anterior");
                     exit(EXIT_FAILURE);
                 }
-                close(prev_read);
+                close(pipes[prev][READ]);
             }
 
-            val++;
+            valor++;
 
             if ((i + 1) % n == s) {
-                close(pipe_hijo_padre[READ]);
-                if (write(pipe_hijo_padre[WRITE], &val, sizeof(val)) == -1) {
-                    perror("write hijo-padre");
+                // soy el último nodo antes del que inició → le devuelvo al padre
+                if (write(pipe_hijo_padre[WRITE], &valor, sizeof(valor)) == -1) {
+                    perror("write al padre");
                     exit(EXIT_FAILURE);
                 }
                 close(pipe_hijo_padre[WRITE]);
             } else {
-                close(actual_pipe[READ]);
-                if (write(actual_pipe[WRITE], &val, sizeof(val)) == -1) {
-                    perror("write anillo");
+                // paso al siguiente en el anillo
+                if (write(pipes[i][WRITE], &valor, sizeof(valor)) == -1) {
+                    perror("write al siguiente");
                     exit(EXIT_FAILURE);
                 }
-                close(actual_pipe[WRITE]);
+                close(pipes[i][WRITE]);
             }
 
-            exit(0);
-        } else {
-            // padre
-            if (prev_read != -1) close(prev_read);
-            if (i != (s - 1 + n) % n) {
-                close(actual_pipe[WRITE]);
-                prev_read = actual_pipe[READ];
-            }
+            exit(EXIT_SUCCESS);
         }
     }
 
-    // proceso padre
+    // PADRE
+    for (int i = 0; i < n; i++) {
+        close(pipes[i][READ]);
+        close(pipes[i][WRITE]);
+    }
     close(pipe_padre_hijo[READ]);
+    close(pipe_hijo_padre[WRITE]);
+
+    // Enviar valor inicial
     if (write(pipe_padre_hijo[WRITE], &c, sizeof(c)) == -1) {
-        perror("padre write inicio");
+        perror("padre write a hijo s");
         exit(EXIT_FAILURE);
     }
     close(pipe_padre_hijo[WRITE]);
 
-    close(pipe_hijo_padre[WRITE]);
-    int result;
-    if (read(pipe_hijo_padre[READ], &result, sizeof(result)) <= 0) {
+    // Esperar valor final
+    int resultado;
+    if (read(pipe_hijo_padre[READ], &resultado, sizeof(resultado)) <= 0) {
         perror("padre read final");
         exit(EXIT_FAILURE);
     }
     close(pipe_hijo_padre[READ]);
 
-    printf("El resultado final es: %d\n", result);
+    printf("El resultado final es: %d\n", resultado);
 
-    // Esperar todos los hijos
-    while (wait(NULL) > 0);
+    for (int i = 0; i < n; i++) waitpid(pids[i], NULL, 0);
     return 0;
 }
