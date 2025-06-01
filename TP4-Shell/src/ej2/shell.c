@@ -9,6 +9,21 @@
 #define MAX_COMMANDS 200
 #define MAX_ARGS 64
 
+int comillas_balanceadas(const char *line) {
+    char quote = 0;
+    while (*line) {
+        if (*line == '\'' || *line == '"') {
+            if (quote == 0) {
+                quote = *line;
+            } else if (quote == *line) {
+                quote = 0;
+            }
+        }
+        line++;
+    }
+    return quote == 0;
+}
+
 void parse_args(char *line, char **args) {
     int i = 0;
     while (*line && i < MAX_ARGS - 1) {
@@ -52,12 +67,16 @@ int main() {
 
         if (strcmp(command, "exit") == 0) break;
 
+        if (!comillas_balanceadas(command)) {
+            fprintf(stderr, "Error de sintaxis: comillas no cerradas\n");
+            continue;
+        }
+
         if (command[0] == '|' || command[strlen(command) - 1] == '|') {
             fprintf(stderr, "Error de sintaxis: pipe al inicio o al final\n");
             continue;
         }
 
-        // Detectar pipe doble explícito (ej: echo hola || wc)
         for (int i = 0; command[i] != '\0' && command[i + 1] != '\0'; i++) {
             if (command[i] == '|' && command[i + 1] == '|') {
                 fprintf(stderr, "Error de sintaxis: pipe vacío\n");
