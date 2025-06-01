@@ -37,12 +37,17 @@ void parse_args(char *line, char **args) {
 
         if (*line == '"' || *line == '\'') {
             char quote = *line++;
-            args[i++] = line;
-            while (*line && *line != quote) line++;
-            if (*line) {
-                *line = '\0';
-                line++;
+            char *start = line;
+            char *arg = malloc(strlen(start) + 1); // temporal
+            int j = 0;
+
+            while (*line && *line != quote) {
+                arg[j++] = *line++;
             }
+            arg[j] = '\0';
+            args[i++] = arg;
+
+            if (*line == quote) line++; // saltar cierre
         } else {
             args[i++] = line;
             while (*line && !isspace(*line)) line++;
@@ -54,6 +59,7 @@ void parse_args(char *line, char **args) {
     }
     args[i] = NULL;
 }
+
 
 int main() {
     char command[4096];
