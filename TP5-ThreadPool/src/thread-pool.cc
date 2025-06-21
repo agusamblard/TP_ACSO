@@ -49,6 +49,7 @@ void ThreadPool::dispatcher() {
         if (done && taskQueue.empty()) break;
 
         for (size_t i = 0; i < wts.size(); ++i) {
+            lock_guard<mutex> stateGuard(wts[i].stateLock);
             if (wts[i].available) {
                 target = i;
                 break;
@@ -64,9 +65,14 @@ void ThreadPool::dispatcher() {
         if (!taskQueue.empty()) {
             task = taskQueue.front();
             taskQueue.pop_front();
-            wts[target].thunk = task;
-            wts[target].hasTask = true;
-            wts[target].available = false;
+
+            {
+                lock_guard<mutex> stateGuard(wts[target].stateLock);
+                wts[target].thunk = task;
+                wts[target].hasTask = true;
+                wts[target].available = false;
+            }
+
             wts[target].wake->signal();
         }
     }
@@ -75,20 +81,31 @@ void ThreadPool::dispatcher() {
 void ThreadPool::worker(int id) {
     while (true) {
         wts[id].wake->wait();
-        if (done && !wts[id].hasTask) break;
 
-        if (wts[id].hasTask) {
-            wts[id].thunk();
-            wts[id].hasTask = false;
-            wts[id].available = true;
-            {
-                lock_guard<mutex> lock(queueLock);
-                --pendingTasks;
-                if (pendingTasks == 0) noMoreTasks.notify_all();
+        bool execute = false;
+        function<void(void)> task;
+
+        {
+            lock_guard<mutex> guard(wts[id].stateLock);
+            if (done && !wts[id].hasTask) break;
+
+            if (wts[id].hasTask) {
+                task = wts[id].thunk;
+                wts[id].hasTask = false;
+                wts[id].available = true;
+                execute = true;
             }
+        }
+
+        if (execute) {
+            task();
+            lock_guard<mutex> lock(queueLock);
+            --pendingTasks;
+            if (pendingTasks == 0) noMoreTasks.notify_all();
         }
     }
 }
+
 
 void ThreadPool::wait() {
     unique_lock<mutex> lock(queueLock);

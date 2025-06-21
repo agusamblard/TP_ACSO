@@ -21,7 +21,9 @@ typedef struct worker {
     bool hasTask = false;
     shared_ptr<Semaphore> wake;
     int id;
+    mutex stateLock;
 } worker_t;
+
 
 class ThreadPool {
   public:
