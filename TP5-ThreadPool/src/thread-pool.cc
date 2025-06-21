@@ -1,9 +1,8 @@
 #include "thread-pool.h"
 #include <condition_variable>
-#include <stdexcept>
 #include <deque>
-#include <array>
-
+#include <stdexcept>
+#include <array>  // Necesario por uso indirecto en test_custom.cc
 
 using namespace std;
 
@@ -20,9 +19,10 @@ ThreadPool::ThreadPool(size_t numThreads)
 }
 
 void ThreadPool::schedule(const function<void(void)>& thunk) {
-    if (!thunk) throw invalid_argument("null function");
+    if (!thunk) return;
     {
         lock_guard<mutex> lock(queueLock);
+        if (done) throw runtime_error("Cannot schedule on destroyed ThreadPool");
         taskQueue.push_back(thunk);
         ++pendingTasks;
     }
@@ -92,7 +92,10 @@ void ThreadPool::wait() {
 
 ThreadPool::~ThreadPool() {
     wait();
-    done = true;
+    {
+        lock_guard<mutex> lock(queueLock);
+        done = true;
+    }
     taskAvailable.notify_all();
     for (auto& w : wts) {
         w.wake->signal();
