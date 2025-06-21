@@ -1,5 +1,6 @@
 #include "thread-pool.h"
 #include <condition_variable>
+#include <stdexcept>
 #include <deque>
 
 using namespace std;
