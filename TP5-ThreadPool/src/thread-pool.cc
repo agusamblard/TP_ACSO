@@ -20,12 +20,19 @@ ThreadPool::ThreadPool(size_t numThreads)
 
 void ThreadPool::schedule(const function<void(void)>& thunk) {
     if (!thunk) throw invalid_argument("Cannot schedule nullptr function");
+
+    bool destroyed = false;
     {
         lock_guard<mutex> lock(queueLock);
-        if (done) throw runtime_error("Cannot schedule on destroyed ThreadPool");
-        taskQueue.push_back(thunk);
-        ++pendingTasks;
+        destroyed = done;
+        if (!destroyed) {
+            taskQueue.push_back(thunk);
+            ++pendingTasks;
+        }
     }
+
+    if (destroyed) throw runtime_error("Cannot schedule on destroyed ThreadPool");
+
     taskAvailable.notify_one();
 }
 
