@@ -2,6 +2,8 @@
 #include <condition_variable>
 #include <stdexcept>
 #include <deque>
+#include <array>
+
 
 using namespace std;
 
