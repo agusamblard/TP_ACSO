@@ -6,6 +6,7 @@
 #include <thread>
 #include <vector>
 #include <mutex>
+#include <array>
 #include <condition_variable>
 #include <deque>
 #include <memory>
