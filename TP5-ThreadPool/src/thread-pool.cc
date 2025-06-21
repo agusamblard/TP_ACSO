@@ -19,7 +19,7 @@ ThreadPool::ThreadPool(size_t numThreads)
 }
 
 void ThreadPool::schedule(const function<void(void)>& thunk) {
-    if (!thunk) return;
+    if (!thunk) throw invalid_argument("Cannot schedule nullptr function");
     {
         lock_guard<mutex> lock(queueLock);
         if (done) throw runtime_error("Cannot schedule on destroyed ThreadPool");
