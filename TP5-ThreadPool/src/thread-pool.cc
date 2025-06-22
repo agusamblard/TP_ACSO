@@ -82,13 +82,18 @@ void ThreadPool::worker(int id) {
     while (true) {
         wts[id].wake->wait();
 
+        // 🔒 Paso 1: verificar si el pool fue destruido y el worker no tiene tarea
+        {
+            lock_guard<mutex> lock(queueLock);
+            lock_guard<mutex> stateGuard(wts[id].stateLock);
+            if (done && !wts[id].hasTask) break;
+        }
+
+        // 🔒 Paso 2: extraer la tarea (si hay) de forma segura
         bool execute = false;
         function<void(void)> task;
-
         {
-            lock_guard<mutex> guard(wts[id].stateLock);
-            if (done && !wts[id].hasTask) break;
-
+            lock_guard<mutex> stateGuard(wts[id].stateLock);
             if (wts[id].hasTask) {
                 task = wts[id].thunk;
                 wts[id].hasTask = false;
@@ -97,6 +102,7 @@ void ThreadPool::worker(int id) {
             }
         }
 
+        // 🚀 Paso 3: ejecutar tarea y actualizar pendingTasks
         if (execute) {
             task();
             lock_guard<mutex> lock(queueLock);
@@ -105,6 +111,7 @@ void ThreadPool::worker(int id) {
         }
     }
 }
+
 
 
 void ThreadPool::wait() {
