@@ -115,12 +115,25 @@ static void buildMap(map<string, function<void(void)>>& testFunctionMap) {
 }
 
 static void executeAll(const map<string, function<void(void)>>& testFunctionMap) {
+    size_t total = 0;
     for (const auto& entry: testFunctionMap) {
         cout << entry.first << ":" << endl;
-        entry.second();
+        try {
+            entry.second();
+            total++;
+        } catch (...) {
+            cout << "❌ Test \"" << entry.first << "\" falló con excepción." << endl;
+        }
     }
+    cout << "\n==============================" << endl;
+    cout << "✅ " << total << "/" << testFunctionMap.size() << " tests ejecutados sin errores." << endl;
+    if (total == testFunctionMap.size()) {
+        cout << "🎉 TODOS LOS TESTS PASARON" << endl;
+    } else {
+        cout << "⚠️ Algunos tests fallaron." << endl;
+    }
+    cout << "==============================" << endl;
 }
-
 int main(int argc, char **argv) {
     if (argc != 2) {
         cout << "Ouch! I need exactly two arguments." << endl;
