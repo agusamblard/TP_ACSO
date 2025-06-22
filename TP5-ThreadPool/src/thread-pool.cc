@@ -86,7 +86,8 @@ void ThreadPool::worker(int id) {
         function<void(void)> task;
 
         {
-            lock_guard<mutex> guard(wts[id].stateLock);
+            lock_guard<mutex> stateGuard(wts[id].stateLock);
+            lock_guard<mutex> lock(queueLock);  // para proteger el acceso a done
             if (done && !wts[id].hasTask) break;
 
             if (wts[id].hasTask) {
