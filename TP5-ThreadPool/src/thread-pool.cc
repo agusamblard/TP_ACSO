@@ -1,8 +1,9 @@
+// thread-pool.cc
 #include "thread-pool.h"
 #include <condition_variable>
 #include <deque>
 #include <stdexcept>
-#include <array>  // Necesario por uso indirecto en test_custom.cc
+#include <array>
 
 using namespace std;
 
@@ -82,16 +83,19 @@ void ThreadPool::worker(int id) {
     while (true) {
         wts[id].wake->wait();
 
-        // 🔒 Paso 1: verificar si el pool fue destruido y el worker no tiene tarea
+        bool exitNow = false;
         {
             lock_guard<mutex> lock(queueLock);
             lock_guard<mutex> stateGuard(wts[id].stateLock);
-            if (done && !wts[id].hasTask) break;
+            if (done && !wts[id].hasTask) {
+                exitNow = true;
+            }
         }
+        if (exitNow) break;
 
-        // 🔒 Paso 2: extraer la tarea (si hay) de forma segura
         bool execute = false;
         function<void(void)> task;
+
         {
             lock_guard<mutex> stateGuard(wts[id].stateLock);
             if (wts[id].hasTask) {
@@ -102,7 +106,6 @@ void ThreadPool::worker(int id) {
             }
         }
 
-        // 🚀 Paso 3: ejecutar tarea y actualizar pendingTasks
         if (execute) {
             task();
             lock_guard<mutex> lock(queueLock);
@@ -111,8 +114,6 @@ void ThreadPool::worker(int id) {
         }
     }
 }
-
-
 
 void ThreadPool::wait() {
     unique_lock<mutex> lock(queueLock);

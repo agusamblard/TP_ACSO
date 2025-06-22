@@ -24,7 +24,6 @@ typedef struct worker {
     mutex stateLock;
 } worker_t;
 
-
 class ThreadPool {
   public:
     ThreadPool(size_t numThreads);
