@@ -133,8 +133,8 @@ ThreadPool::~ThreadPool() {
     {
         lock_guard<mutex> lock(queueLock);
         done = true;
+        taskAvailable.notify_all();
     }
-    taskAvailable.notify_all();
     for (auto& w : wts) {
         {
             lock_guard<mutex> stateGuard(w.stateLock);
