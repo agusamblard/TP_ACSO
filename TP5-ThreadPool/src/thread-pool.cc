@@ -72,9 +72,8 @@ void ThreadPool::dispatcher() {
                 wts[target].thunk = task;
                 wts[target].hasTask = true;
                 wts[target].available = false;
+                wts[target].wake->signal();
             }
-
-            wts[target].wake->signal();
         }
     }
 }
@@ -108,9 +107,13 @@ void ThreadPool::worker(int id) {
 
         if (execute) {
             task();
-            lock_guard<mutex> lock(queueLock);
-            --pendingTasks;
-            if (pendingTasks == 0) noMoreTasks.notify_all();
+            {
+                lock_guard<mutex> lock(queueLock);
+                --pendingTasks;
+                if (pendingTasks == 0) {
+                    noMoreTasks.notify_all();
+                }
+            }
         }
     }
 }
@@ -130,7 +133,10 @@ ThreadPool::~ThreadPool() {
     }
     taskAvailable.notify_all();
     for (auto& w : wts) {
-        w.wake->signal();
+        {
+            lock_guard<mutex> stateGuard(w.stateLock);
+            w.wake->signal();
+        }
         if (w.ts.joinable()) w.ts.join();
     }
     if (dt.joinable()) dt.join();
