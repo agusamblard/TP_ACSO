@@ -7,6 +7,7 @@
 
 using namespace std;
 
+
 ThreadPool::ThreadPool(size_t numThreads)
     : wts(numThreads), done(false), pendingTasks(0) {
     for (size_t i = 0; i < numThreads; ++i) {
@@ -16,8 +17,11 @@ ThreadPool::ThreadPool(size_t numThreads)
         wts[i].id = i;
         wts[i].ts = thread([this, i] { worker(i); });
     }
+
+    // dispatcher asigna tareas a los disponibles
     dt = thread([this] { dispatcher(); });
 }
+
 
 void ThreadPool::schedule(const function<void(void)>& thunk) {
     if (!thunk) throw invalid_argument("Cannot schedule nullptr function");
@@ -27,6 +31,7 @@ void ThreadPool::schedule(const function<void(void)>& thunk) {
         lock_guard<mutex> lock(queueLock);
         destroyed = done;
         if (!destroyed) {
+            // Añade la tarea a la cola e incrementa el contador de pending tasks
             taskQueue.push_back(thunk);
             ++pendingTasks;
         }
@@ -35,10 +40,12 @@ void ThreadPool::schedule(const function<void(void)>& thunk) {
     if (destroyed) throw runtime_error("Cannot schedule on destroyed ThreadPool");
 
     {
+        // Notifica al dispatch que hay una tarea disponible
         lock_guard<mutex> lock(queueLock);
         taskAvailable.notify_one();
     }
 }
+
 
 void ThreadPool::dispatcher() {
     while (true) {
@@ -46,12 +53,14 @@ void ThreadPool::dispatcher() {
         int target = -1;
 
         unique_lock<mutex> lock(queueLock);
+        // Espera hasta que haya una tarea o el grupo esté terminando
         taskAvailable.wait(lock, [this] {
             return done || !taskQueue.empty();
         });
 
         if (done && taskQueue.empty()) break;
 
+        // Busca un hilo disponible
         for (size_t i = 0; i < wts.size(); ++i) {
             lock_guard<mutex> stateGuard(wts[i].stateLock);
             if (wts[i].available) {
@@ -61,12 +70,14 @@ void ThreadPool::dispatcher() {
         }
 
         if (target == -1) {
+            // si noo hay trabajador disponible, libera el bloqueo y cede la ejecución a otros hilos
             lock.unlock();
             this_thread::yield();
             continue;
         }
 
         if (!taskQueue.empty()) {
+            // asigna tarea a trabajador seleccionado
             task = taskQueue.front();
             taskQueue.pop_front();
 
@@ -80,15 +91,16 @@ void ThreadPool::dispatcher() {
         }
     }
 }
-
 void ThreadPool::worker(int id) {
     while (true) {
+        // espera hasta recibir la señal de ejecutar una tarea
         wts[id].wake->wait();
 
         bool exitNow = false;
         {
             lock_guard<mutex> lock(queueLock);
             lock_guard<mutex> stateGuard(wts[id].stateLock);
+
             if (done && !wts[id].hasTask) {
                 exitNow = true;
             }
@@ -110,9 +122,11 @@ void ThreadPool::worker(int id) {
 
         if (execute) {
             task();
+
             {
                 lock_guard<mutex> lock(queueLock);
                 --pendingTasks;
+
                 if (pendingTasks == 0) {
                     noMoreTasks.notify_all();
                 }
@@ -121,6 +135,7 @@ void ThreadPool::worker(int id) {
     }
 }
 
+
 void ThreadPool::wait() {
     unique_lock<mutex> lock(queueLock);
     noMoreTasks.wait(lock, [this] {
@@ -128,13 +143,17 @@ void ThreadPool::wait() {
     });
 }
 
+
 ThreadPool::~ThreadPool() {
     wait();
+
     {
         lock_guard<mutex> lock(queueLock);
         done = true;
+        // Despierta al despachador y a los trabajadores para permitir que terminen
         taskAvailable.notify_all();
     }
+
     for (auto& w : wts) {
         {
             lock_guard<mutex> stateGuard(w.stateLock);
@@ -142,5 +161,6 @@ ThreadPool::~ThreadPool() {
         }
         if (w.ts.joinable()) w.ts.join();
     }
+
     if (dt.joinable()) dt.join();
 }
