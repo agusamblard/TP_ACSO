@@ -2,6 +2,7 @@
     "files.associations": {
         "stdio.h": "c",
         "vector": "cpp",
-        "stdexcept": "cpp"
+        "stdexcept": "cpp",
+        "condition_variable": "cpp"
     }
 }

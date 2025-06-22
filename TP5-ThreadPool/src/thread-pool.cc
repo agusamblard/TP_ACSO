@@ -34,7 +34,10 @@ void ThreadPool::schedule(const function<void(void)>& thunk) {
 
     if (destroyed) throw runtime_error("Cannot schedule on destroyed ThreadPool");
 
-    taskAvailable.notify_one();
+    {
+        lock_guard<mutex> lock(queueLock);
+        taskAvailable.notify_one();
+    }
 }
 
 void ThreadPool::dispatcher() {
