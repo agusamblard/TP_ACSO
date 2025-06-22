@@ -260,21 +260,28 @@ bool test_potential_deadlock() {
                 mtx.unlock();
             }
 
-            // Interpretar el resultado
             if (!locked && !ready.load()) {
-                // Se detectó un posible deadlock
-                finished = true;
-                done_cv.notify_one();
+                {
+                    lock_guard<mutex> lock(done_mutex);
+                    finished = true;
+                    done_cv.notify_one();
+                }
                 return;
             }
 
-            pool.wait();  // en caso normal
-            finished = true;
-            done_cv.notify_one();
+            pool.wait();
+            {
+                lock_guard<mutex> lock(done_mutex);
+                finished = true;
+                done_cv.notify_one();
+            }
 
         } catch (...) {
-            finished = false;
-            done_cv.notify_one();
+            {
+                lock_guard<mutex> lock(done_mutex);
+                finished = false;
+                done_cv.notify_one();
+            }
         }
     });
 
